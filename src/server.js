@@ -367,6 +367,11 @@ app.get('/demo', (req, res) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GenStory Demo</title>
+    <!-- 添加 Markdown 解析库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <!-- 添加代码高亮 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <style>
         body { 
             font-family: 'Arial', sans-serif; 
@@ -406,6 +411,67 @@ app.get('/demo', (req, res) => {
             padding: 10px;
             border-radius: 8px;
             animation: fadeIn 0.3s ease-in;
+            line-height: 1.6;
+        }
+        .message h1, .message h2, .message h3, .message h4, .message h5, .message h6 {
+            margin-top: 0;
+            margin-bottom: 0.5em;
+            color: #333;
+        }
+        .message p {
+            margin: 0.5em 0;
+        }
+        .message ul, .message ol {
+            margin: 0.5em 0;
+            padding-left: 20px;
+        }
+        .message li {
+            margin: 0.25em 0;
+        }
+        .message blockquote {
+            margin: 0.5em 0;
+            padding: 0.5em 1em;
+            border-left: 4px solid #ddd;
+            background-color: #f9f9f9;
+            font-style: italic;
+        }
+        .message code {
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .message pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+        }
+        .message pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        .message strong {
+            font-weight: bold;
+        }
+        .message em {
+            font-style: italic;
+        }
+        .message table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 0.5em 0;
+        }
+        .message table th, .message table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .message table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
         }
         .user-message {
             background-color: #007bff;
@@ -509,6 +575,37 @@ app.get('/demo', (req, res) => {
         let sessionId = null;
         let eventSource = null;
         
+        // 配置 Marked 选项
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            headerIds: false,
+            mangle: false
+        });
+        
+        // 安全的 HTML 渲染函数
+        function renderMarkdown(text) {
+            try {
+                // 使用 marked 解析 Markdown
+                const html = marked.parse(text);
+                return html;
+            } catch (error) {
+                console.error('Markdown 解析错误:', error);
+                // 如果解析失败，返回转义的纯文本
+                return escapeHtml(text);
+            }
+        }
+        
+        // HTML 转义函数，防止 XSS
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
         function updateStatus(message, type = 'info') {
             const status = document.getElementById('status');
             status.textContent = message;
@@ -576,13 +673,24 @@ app.get('/demo', (req, res) => {
             messageDiv.className = \`message \${isUser ? 'user-message' : 'agent-message'}\`;
             
             const time = new Date(timestamp).toLocaleTimeString();
+            const renderedMessage = isUser ? escapeHtml(message) : renderMarkdown(message);
+            
             messageDiv.innerHTML = \`
                 <div class="speaker-name">\${speaker || (isUser ? '用户' : '系统')}</div>
-                <div>\${message}</div>
+                <div class="message-content">\${renderedMessage}</div>
                 <div class="timestamp">\${time}</div>
             \`;
             
             messages.appendChild(messageDiv);
+            
+            // 如果有代码块，进行语法高亮
+            if (!isUser) {
+                const codeBlocks = messageDiv.querySelectorAll('pre code');
+                codeBlocks.forEach(block => {
+                    hljs.highlightElement(block);
+                });
+            }
+            
             messages.scrollTop = messages.scrollHeight;
         }
         
@@ -593,14 +701,22 @@ app.get('/demo', (req, res) => {
             
             const time = new Date(timestamp).toLocaleTimeString();
             const phaseText = phase ? \` [\${phase}]\` : '';
+            const renderedMessage = renderMarkdown(message);
             
             messageDiv.innerHTML = \`
                 <div class="speaker-name">\${speaker || '系统'}\${phaseText}</div>
-                <div>\${message}</div>
+                <div class="message-content">\${renderedMessage}</div>
                 <div class="timestamp">\${time}</div>
             \`;
             
             messages.appendChild(messageDiv);
+            
+            // 代码块语法高亮
+            const codeBlocks = messageDiv.querySelectorAll('pre code');
+            codeBlocks.forEach(block => {
+                hljs.highlightElement(block);
+            });
+            
             messages.scrollTop = messages.scrollHeight;
         }
         
