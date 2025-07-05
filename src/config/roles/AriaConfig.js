@@ -19,7 +19,7 @@ export const AriaConfig = {
   // AI模型配置
   model: {
     provider: 'gemini',           // 模型提供商
-    modelName: 'gemini-pro',      // 具体模型
+    modelName: 'gemini-2.5-pro',      // 具体模型
     temperature: 0.7,             // 创造性水平（0.0-1.0）
     maxTokens: 1024,              // 最大生成token数
     topP: 0.8,                    // 核采样参数

@@ -2,10 +2,48 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 import configManager from './config/ConfigManager.js';
 import MultiAgentOrchestrator from './MultiAgentOrchestrator.js';
 
 dotenv.config();
+
+// 配置全局代理（在任何网络请求之前）
+const configureGlobalProxy = () => {
+  const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.https_proxy || process.env.http_proxy;
+  if (proxy) {
+    console.log(`🌐 服务器检测到代理配置: ${proxy}`);
+    
+    // 根据代理类型创建相应的 agent
+    let agent;
+    if (proxy.startsWith('socks5://') || proxy.startsWith('socks4://')) {
+      agent = new SocksProxyAgent(proxy);
+      console.log(`🧦 服务器使用 SOCKS 代理`);
+    } else {
+      agent = new HttpsProxyAgent(proxy);
+      console.log(`🌐 服务器使用 HTTP(S) 代理`);
+    }
+    
+    // 重写全局 fetch 以使用代理
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, options = {}) => {
+      if (typeof url === 'string' && (url.includes('googleapis.com') || url.includes('google.com'))) {
+        options.agent = agent;
+        console.log(`🔗 通过代理访问: ${new URL(url).hostname}`);
+      }
+      return originalFetch(url, options);
+    };
+    
+    return true;
+  } else {
+    console.log(`🌐 未检测到代理配置，使用直连`);
+  }
+  return false;
+};
+
+// 配置代理
+configureGlobalProxy();
 
 const app = express();
 
@@ -641,10 +679,14 @@ app.get('/demo', (req, res) => {
 
 // 启动服务器
 app.listen(port, () => {
+  const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.https_proxy || process.env.http_proxy;
+  const proxyStatus = proxy ? `🌐 使用代理: ${proxy}` : '🌐 直连模式';
+  
   console.log(`
 🎭 GenStory 多角色AI故事生成系统已启动
 📡 服务器运行在: http://localhost:${port}
 🎪 演示页面: http://localhost:${port}/demo
+${proxyStatus}
 
 团队成员:
 👔 创意总监 Alex - 负责整体创意构思
@@ -653,7 +695,10 @@ app.listen(port, () => {
 💬 对话师 Dana - 负责对话和叙述
 👋 接待员 Echo - 负责用户交互
 
-请确保已设置 GEMINI_API_KEY 环境变量！
+⚠️ 如果遇到 API 连接问题，请检查：
+1. GEMINI_API_KEY 是否正确设置
+2. 代理设置是否正确（如果需要）
+3. 网络连接是否正常
   `);
 });
 

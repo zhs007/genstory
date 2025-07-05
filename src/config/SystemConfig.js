@@ -71,7 +71,7 @@ export const RoleConfigs = {
     // 模型配置
     model: {
       provider: 'gemini',
-      modelName: 'gemini-pro',
+      modelName: 'gemini-2.5-pro',
       temperature: 0.8,        // 高创造性
       maxTokens: 2048,
       topP: 0.9,
@@ -113,7 +113,7 @@ export const RoleConfigs = {
     // 模型配置
     model: {
       provider: 'gemini',
-      modelName: 'gemini-pro',
+      modelName: 'gemini-2.5-pro',
       temperature: 0.6,        // 中等创造性，更注重逻辑
       maxTokens: 2048,
       topP: 0.8,
@@ -154,7 +154,7 @@ export const RoleConfigs = {
     // 模型配置
     model: {
       provider: 'gemini',
-      modelName: 'gemini-pro',
+      modelName: 'gemini-2.5-pro',
       temperature: 0.7,
       maxTokens: 2048,
       topP: 0.85,
@@ -194,7 +194,7 @@ export const RoleConfigs = {
     // 模型配置
     model: {
       provider: 'gemini',
-      modelName: 'gemini-pro',
+      modelName: 'gemini-2.5-pro',
       temperature: 0.75,
       maxTokens: 2048,
       topP: 0.9,
@@ -234,7 +234,7 @@ export const RoleConfigs = {
     // 模型配置
     model: {
       provider: 'gemini',
-      modelName: 'gemini-pro',
+      modelName: 'gemini-2.5-pro',
       temperature: 0.7,
       maxTokens: 1024,         // 用户交互不需要太长
       topP: 0.8,
