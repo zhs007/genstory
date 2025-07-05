@@ -106,6 +106,13 @@ class BaseAgent {
     });
     
     this.conversationHistory = [];
+    
+    // 添加初始化日志
+    console.log(`🎭 初始化角色: ${this.name} (${this.roleId})`);
+    console.log(`   显示名称: ${this.displayName}`);
+    console.log(`   模型配置: ${this.modelConfig.modelName}`);
+    console.log(`   故事类型: ${this.genre}`);
+    console.log(`   参数设置: temp=${this.modelConfig.temperature}, maxTokens=${this.modelConfig.maxTokens}`);
   }
 
   async generateResponse(prompt, context = [], retryCount = 0) {
@@ -118,23 +125,39 @@ class BaseAgent {
         throw new Error('GEMINI_API_KEY 环境变量未正确设置。请在 .env 文件中设置有效的 Google Gemini API 密钥。');
       }
 
-      // 构建完整的上下文
-      const fullContext = [
-        { role: 'system', content: this.systemPrompt },
-        ...context,
-        { role: 'user', content: prompt }
+      // 添加请求日志 - 显示角色名和模型信息
+      console.log(`🤖 [${this.name}] 正在请求 Gemini API`);
+      console.log(`   角色ID: ${this.roleId}`);
+      console.log(`   模型名: ${this.modelConfig.modelName}`);
+      console.log(`   模型配置: temperature=${this.modelConfig.temperature}, maxTokens=${this.modelConfig.maxTokens}`);
+      if (retryCount > 0) {
+        console.log(`   重试次数: ${retryCount}/${maxRetries}`);
+      }
+
+      // 构建完整的上下文，将系统提示词加入对话历史
+      const systemPromptHistory = [
+        { role: 'user', parts: [{ text: this.systemPrompt }] },
+        { role: 'model', parts: [{ text: '我明白了，我会严格按照您的要求进行工作。' }] }
+      ];
+
+      const fullHistory = [
+        ...systemPromptHistory,
+        ...this.conversationHistory.map(msg => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        }))
       ];
 
       // 将对话历史转换为Gemini格式
       const chat = this.model.startChat({
-        history: this.conversationHistory.map(msg => ({
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: msg.content }]
-        }))
+        history: fullHistory
       });
 
       const result = await chat.sendMessage(prompt);
       const response = result.response.text();
+
+      // 添加响应成功日志
+      console.log(`✅ [${this.name}] API 请求成功，响应长度: ${response.length} 字符`);
 
       // 更新对话历史
       this.conversationHistory.push(
@@ -142,32 +165,74 @@ class BaseAgent {
         { role: 'assistant', content: response }
       );
 
-      return response;
+      return {
+        success: true,
+        content: response,
+        error: null
+      };
     } catch (error) {
-      console.error(`Error in ${this.name} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error.message);
+      // 添加错误日志 - 显示角色和模型信息
+      console.error(`❌ [${this.name}] API 请求失败 (${this.modelConfig.modelName})`);
+      console.error(`   错误信息: ${error.message}`);
+      console.error(`   尝试次数: ${retryCount + 1}/${maxRetries + 1}`);
       
-      // 网络错误重试机制
-      if (error.message.includes('fetch failed') && retryCount < maxRetries) {
-        console.log(`${this.name} 正在重试... (${retryCount + 1}/${maxRetries})`);
+      // 网络错误重试机制 - 检查各种网络错误类型
+      const networkErrors = [
+        'fetch failed',
+        'socket hang up',
+        'ECONNRESET',
+        'ENOTFOUND',
+        'ETIMEDOUT',
+        'ECONNREFUSED',
+        'network timeout',
+        'Connection timeout',
+        'Request timeout'
+      ];
+      
+      const isNetworkError = networkErrors.some(errorType => 
+        error.message.toLowerCase().includes(errorType.toLowerCase())
+      );
+      
+      if (isNetworkError && retryCount < maxRetries) {
+        console.log(`🔄 [${this.name}] 检测到网络错误，正在重试... (${retryCount + 1}/${maxRetries})`);
+        console.log(`   错误类型: ${error.message.substring(0, 100)}...`);
         await new Promise(resolve => setTimeout(resolve, retryDelay * (retryCount + 1)));
         return this.generateResponse(prompt, context, retryCount + 1);
       }
       
-      // 如果是API密钥问题，返回更详细的错误信息
-      if (error.message.includes('API key') || error.message.includes('GEMINI_API_KEY')) {
-        return `[${this.name} 配置错误: ${error.message}]`;
-      }
+      // 构造统一的错误返回格式
+      let errorMessage = '';
+      let errorType = 'unknown';
       
-      // 网络连接问题的详细提示
-      if (error.message.includes('fetch failed')) {
+      // 如果是API密钥问题
+      if (error.message.includes('API key') || error.message.includes('GEMINI_API_KEY')) {
+        errorType = 'api_key';
+        errorMessage = `配置错误: ${error.message}`;
+      }
+      // 网络连接问题 - 扩展网络错误类型识别
+      else if (networkErrors.some(errType => error.message.toLowerCase().includes(errType.toLowerCase()))) {
+        errorType = 'network';
         const proxyHint = process.env.HTTPS_PROXY || process.env.HTTP_PROXY ? 
           `当前使用代理: ${process.env.HTTPS_PROXY || process.env.HTTP_PROXY}. ` : 
           '如果您在使用代理，请在 .env 文件中设置 HTTPS_PROXY 或 HTTP_PROXY 环境变量. ';
-        
-        return `[${this.name} 网络连接失败: ${proxyHint}请检查网络连接、代理设置或稍后重试。错误详情: ${error.message}]`;
+        errorMessage = `网络连接失败: ${proxyHint}已达到最大重试次数(${maxRetries})，请检查网络连接、代理设置或稍后重试。错误详情: ${error.message}`;
+      }
+      // 其他错误
+      else {
+        errorType = 'general';
+        errorMessage = `遇到错误: ${error.message}`;
       }
       
-      return `[${this.name} 遇到错误: ${error.message}]`;
+      return {
+        success: false,
+        content: null,
+        error: {
+          type: errorType,
+          message: errorMessage,
+          agent: this.name,
+          timestamp: new Date().toISOString()
+        }
+      };
     }
   }
 
@@ -208,6 +273,7 @@ class BaseAgent {
    * @param {string} newGenre - 新的故事类型
    */
   updateGenre(newGenre) {
+    const oldGenre = this.genre;
     this.genre = newGenre;
     this.systemPrompt = configManager.getAdjustedRolePrompt(this.roleId, newGenre);
     this.modelConfig = configManager.getAdjustedModelConfig(this.roleId, newGenre);
@@ -222,6 +288,10 @@ class BaseAgent {
         maxOutputTokens: this.modelConfig.maxTokens || 2048,
       }
     });
+    
+    // 添加类型更新日志
+    console.log(`🔄 [${this.name}] 故事类型更新: ${oldGenre} → ${newGenre}`);
+    console.log(`   新模型配置: ${this.modelConfig.modelName}, temp=${this.modelConfig.temperature}`);
   }
 
   /**

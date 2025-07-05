@@ -48,7 +48,23 @@ class ConfigManager {
    * @returns {Object|null} 角色配置
    */
   getRoleConfig(roleId) {
-    return this.roleConfigs[roleId] || null;
+    // 优先使用新的角色配置系统
+    try {
+      const newRoleConfig = getRoleConfig(roleId);
+      if (newRoleConfig) {
+        console.log(`🔧 [ConfigManager] 使用新配置系统获取角色: ${roleId}, 模型: ${newRoleConfig.model?.modelName}`);
+        return newRoleConfig;
+      }
+    } catch (error) {
+      console.log(`⚠️ [ConfigManager] 新配置系统中未找到角色 ${roleId}, 回退到旧配置`);
+    }
+    
+    // 回退到旧的配置系统
+    const oldRoleConfig = this.roleConfigs[roleId] || null;
+    if (oldRoleConfig) {
+      console.log(`🔧 [ConfigManager] 使用旧配置系统获取角色: ${roleId}, 模型: ${oldRoleConfig.model?.modelName}`);
+    }
+    return oldRoleConfig;
   }
 
   /**

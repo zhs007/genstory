@@ -358,6 +358,40 @@ app.get('/api/config/validate', (req, res) => {
   }
 });
 
+// 重试失败的操作
+app.post('/api/retry/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    const session = orchestrator.getSession(sessionId);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: '会话不存在'
+      });
+    }
+
+    if (!session.retryContext) {
+      return res.status(400).json({
+        success: false,
+        error: '没有可重试的操作'
+      });
+    }
+
+    await orchestrator.retryFailedOperation(sessionId);
+    
+    res.json({
+      success: true,
+      message: '重试操作已开始'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // 演示页面路由
 app.get('/demo', (req, res) => {
   res.send(`
@@ -536,6 +570,43 @@ app.get('/demo', (req, res) => {
             color: #666;
             float: right;
         }
+        .error-message {
+            background-color: #f8d7da !important;
+            border-left: 4px solid #dc3545 !important;
+            color: #721c24;
+        }
+        .retry-button-container {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f1f3f4;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .retry-btn {
+            background-color: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .retry-btn:hover {
+            background-color: #e0a800;
+        }
+        .retry-btn:disabled {
+            background-color: #6c757d;
+            color: white;
+            cursor: not-allowed;
+        }
+        .retry-hint {
+            display: block;
+            margin-top: 5px;
+            color: #6c757d;
+            font-size: 12px;
+        }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -663,7 +734,7 @@ app.get('/demo', (req, res) => {
             if (data.type === 'user_message') {
                 addChatMessage(data.message, data.speaker, false, data.timestamp);
             } else if (data.type === 'internal_communication') {
-                addInternalMessage(data.message, data.speaker, data.phase, data.timestamp);
+                addInternalMessage(data.message, data.speaker, data.phase, data.timestamp, data.error, data.retryButton);
             }
         }
         
@@ -694,18 +765,39 @@ app.get('/demo', (req, res) => {
             messages.scrollTop = messages.scrollHeight;
         }
         
-        function addInternalMessage(message, speaker, phase, timestamp) {
+        function addInternalMessage(message, speaker, phase, timestamp, isError, canRetry) {
             const messages = document.getElementById('internalMessages');
+            
+            // 如果是新的错误且可以重试，先移除所有旧的重试按钮容器
+            if (isError && canRetry) {
+                const oldRetryContainers = messages.querySelectorAll('.retry-button-container');
+                oldRetryContainers.forEach(container => container.remove());
+            }
+            
             const messageDiv = document.createElement('div');
-            messageDiv.className = 'message internal-message';
+            messageDiv.className = \`message internal-message\${isError ? ' error-message' : ''}\`;
             
             const time = new Date(timestamp).toLocaleTimeString();
             const phaseText = phase ? \` [\${phase}]\` : '';
             const renderedMessage = renderMarkdown(message);
             
+            // 如果是错误且可以重试，添加重试按钮
+            let retryButtonHtml = '';
+            if (isError && canRetry) {
+                retryButtonHtml = \`
+                    <div class="retry-button-container">
+                        <button class="btn btn-warning retry-btn" onclick="retryFailedOperation()">
+                            🔄 重试
+                        </button>
+                        <small class="retry-hint">点击重试按钮继续执行，或重新开始对话</small>
+                    </div>
+                \`;
+            }
+            
             messageDiv.innerHTML = \`
                 <div class="speaker-name">\${speaker || '系统'}\${phaseText}</div>
                 <div class="message-content">\${renderedMessage}</div>
+                \${retryButtonHtml}
                 <div class="timestamp">\${time}</div>
             \`;
             
@@ -767,6 +859,50 @@ app.get('/demo', (req, res) => {
                 }
             } catch (error) {
                 updateStatus('网络错误: ' + error.message, 'error');
+            }
+        }
+        
+        async function retryFailedOperation() {
+            if (!sessionId) {
+                updateStatus('错误: 没有活动会话', 'error');
+                return;
+            }
+            
+            try {
+                updateStatus('正在重试失败的操作...', 'info');
+                
+                // 禁用所有重试按钮，避免重复点击
+                const retryButtons = document.querySelectorAll('.retry-btn');
+                retryButtons.forEach(btn => {
+                    btn.disabled = true;
+                    btn.textContent = '重试中...';
+                });
+                
+                const response = await fetch(\`/api/retry/\${sessionId}\`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    updateStatus('重试操作已开始，请等待结果...', 'success');
+                    // 成功时按钮保持禁用状态，等待新的消息处理
+                } else {
+                    updateStatus('重试失败: ' + data.error, 'error');
+                    // 失败时恢复按钮状态
+                    retryButtons.forEach(btn => {
+                        btn.disabled = false;
+                        btn.textContent = '🔄 重试';
+                    });
+                }
+            } catch (error) {
+                updateStatus('网络错误: ' + error.message, 'error');
+                // 网络错误时也要恢复按钮状态
+                const retryButtons = document.querySelectorAll('.retry-btn');
+                retryButtons.forEach(btn => {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 重试';
+                });
             }
         }
         
