@@ -93,8 +93,22 @@ class MultiAgentOrchestrator {
       userId,
       storyContext: {},
       conversationLog: [],
-      currentPhase: 'initial',
+      currentPhase: 'requirement_gathering', // 改为需求收集阶段
       userInterruptions: [],
+      // 新增：需求收集状态
+      requirementGathering: {
+        isComplete: false,           // 需求收集是否完成
+        userWantsToStart: false,     // 用户是否明确要求开始创作
+        collectedRequirements: {     // 已收集的需求
+          storyBackground: null,     // 故事背景
+          characterDetails: null,    // 角色定位
+          targetAudience: null,      // 目标群体
+          narrativeModel: null,      // 叙事模型
+          storyCore: null           // 故事内核
+        },
+        currentQuestion: null,       // 当前正在询问的问题
+        questionIndex: 0            // 问题索引
+      },
       // 新增：重试支持
       retryContext: null,  // 保存失败时的上下文
       failedAt: null,      // 失败的阶段
@@ -153,7 +167,53 @@ class MultiAgentOrchestrator {
     console.log(`   是否为中断: ${isInterruption}`);
     console.log(`   当前阶段: ${session.currentPhase}`);
 
-    // 如果是用户中断，记录中断信息
+    // 根据当前阶段决定处理方式
+    if (session.currentPhase === 'requirement_gathering' && !session.requirementGathering.isComplete) {
+      // 需求收集阶段
+      console.log(`📋 [Aria] 进行需求收集阶段...`);
+      
+      // 如果是第一次对话，Aria先自我介绍并开始提问
+      if (session.requirementGathering.questionIndex === 0 && session.requirementGathering.currentQuestion === null) {
+        // 初次见面，开始第一个问题
+        session.requirementGathering.currentQuestion = 'storyBackground';
+        const questions = this.getRequirementQuestions();
+        const firstQuestion = questions[0];
+        
+        const welcomeResponse = await this.agents.frontDesk.generateResponse(
+          `这是用户的初始需求："${userInput}"。请先友好地打招呼，简单介绍自己是Aria，然后说明需要了解一些信息来帮助团队创作，接着问第一个问题："${firstQuestion.question}"`
+        );
+
+        if (!welcomeResponse.success) {
+          this.emitUserMessage(sessionId, {
+            message: `前台接待暂时无法响应：${welcomeResponse.error.message}`,
+            speaker: this.agents.frontDesk.getName(),
+            role: this.agents.frontDesk.getRole(),
+            error: true
+          });
+          throw new Error(`前台接待出错: ${welcomeResponse.error.message}`);
+        }
+
+        this.emitUserMessage(sessionId, {
+          message: welcomeResponse.content,
+          speaker: this.agents.frontDesk.getName(),
+          role: this.agents.frontDesk.getRole(),
+          requirementGathering: {
+            phase: 'started',
+            questionKey: firstQuestion.key,
+            questionIndex: 0,
+            totalQuestions: questions.length
+          }
+        });
+        
+        return welcomeResponse.content;
+      } else {
+        // 继续需求收集流程
+        await this.handleRequirementGathering(sessionId, userInput);
+        return; // handleRequirementGathering 会处理所有响应
+      }
+    }
+
+    // 如果是用户中断（在团队协作阶段），记录中断信息
     if (isInterruption) {
       session.userInterruptions.push({
         input: userInput,
@@ -169,12 +229,12 @@ class MultiAgentOrchestrator {
       console.log(`⚡ 用户中断处理: 在 ${session.currentPhase} 阶段收到建议`);
     }
 
-    // 前台接待首先回应用户
+    // 团队协作阶段 - 前台接待回应用户
     console.log(`👋 前台接待 ${this.agents.frontDesk.name} 开始处理请求...`);
     const frontDeskResult = await this.agents.frontDesk.generateResponse(
       isInterruption ? 
         `用户在故事创作过程中提出了建议: "${userInput}"。请友好地确认收到，并告知会将建议传达给团队。` :
-        userInput
+        `用户说："${userInput}"。请确认收到并告知即将开始团队协作创作。`
     );
 
     // 检查前台接待是否出错
@@ -196,11 +256,38 @@ class MultiAgentOrchestrator {
       role: this.agents.frontDesk.getRole()
     });
 
+    // 开始或继续团队协作
+    await this.startTeamCollaboration(sessionId, userInput);
+    
+    return frontDeskResponse;
+  }
+
+  // 开始团队协作流程
+  async startTeamCollaboration(sessionId, userInput) {
+    const session = this.sessions.get(sessionId);
+    
+    // 构建完整的需求分析，包括收集的信息
+    let fullRequirementAnalysis = userInput;
+    
+    if (session.requirementGathering && session.requirementGathering.collectedRequirements) {
+      const collected = session.requirementGathering.collectedRequirements;
+      fullRequirementAnalysis = `用户最新输入："${userInput}"
+
+之前收集的详细需求信息：
+${collected.storyBackground ? `\n故事背景：${collected.storyBackground}` : ''}
+${collected.characterDetails ? `\n角色设定：${collected.characterDetails}` : ''}
+${collected.targetAudience ? `\n目标群体：${collected.targetAudience}` : ''}
+${collected.narrativeModel ? `\n叙事模型：${collected.narrativeModel}` : ''}
+${collected.storyCore ? `\n故事内核：${collected.storyCore}` : ''}`;
+    }
+    
     // Aria向团队传达需求分析
     console.log(`🎯 [Aria] 开始向团队传达需求分析...`);
     
     const requirementAnalysisResult = await this.agents.frontDesk.generateResponse(
-      `现在请你作为需求分析师，将用户的需求："${userInput}" 进行深度分析和整理，然后向创作团队传达。
+      `现在请你作为需求分析师，将收集到的完整需求信息进行深度分析和整理，然后向创作团队传达：
+
+${fullRequirementAnalysis}
 
 请按以下格式整理需求：
 1. 故事类型和基调
@@ -223,17 +310,15 @@ class MultiAgentOrchestrator {
       // 如果Aria的分析失败，使用简化版本
       this.emitInternalCommunication(sessionId, {
         phase: 'requirement_analysis', 
-        message: `🎯 **Aria向团队传达用户需求**\n\n用户需求："${userInput}"\n\n请团队成员根据用户需求开始创作工作。`,
+        message: `🎯 **Aria向团队传达用户需求**\n\n${fullRequirementAnalysis}\n\n请团队成员根据用户需求开始创作工作。`,
         speaker: this.agents.frontDesk.getName(),
         role: this.agents.frontDesk.getRole()
       });
     }
 
     // 开始内部讨论流程
-    const ariaAnalysis = requirementAnalysisResult.success ? requirementAnalysisResult.content : `用户需求：${userInput}`;
-    await this.conductInternalDiscussion(sessionId, userInput, ariaAnalysis, isInterruption);
-
-    return frontDeskResponse;
+    const ariaAnalysis = requirementAnalysisResult.success ? requirementAnalysisResult.content : fullRequirementAnalysis;
+    await this.conductInternalDiscussion(sessionId, userInput, ariaAnalysis, false);
   }
 
   // 内部讨论流程
@@ -832,6 +917,219 @@ class MultiAgentOrchestrator {
     session.retryContext = null;
     session.failedAt = null;
     session.lastError = null;
+  }
+
+  // 需求收集的问题模板
+  getRequirementQuestions() {
+    return [
+      {
+        key: 'storyBackground',
+        question: `您好！我是Aria，很高兴为您服务！在开始创作之前，我需要了解一些关键信息来确保我们的团队能为您创作出最满意的作品。
+
+首先，请告诉我关于故事背景的想法：
+• 故事发生在什么时代？（现代、古代、未来等）
+• 地理位置在哪里？（城市、乡村、特定国家等）
+• 有特定的历史事件背景吗？
+
+请尽可能详细地描述，这将帮助我们的团队更好地构建故事世界。`,
+        followUp: '如果您还没想好具体细节，也可以告诉我大概的方向，我们可以一起完善。'
+      },
+      {
+        key: 'characterDetails',
+        question: `很好！现在让我们来聊聊角色设定：
+• 主角的基本信息：年龄、性别、职业
+• 国籍或文化背景
+• 性格特点或独特之处
+• 是否有特定的角色原型或参考？
+
+如果有多个重要角色，也请一并告诉我。`,
+        followUp: '角色是故事的灵魂，越详细越能帮助我们创作出有血有肉的人物。'
+      },
+      {
+        key: 'targetAudience',
+        question: `接下来是关于读者群体的考虑：
+• 这个故事主要是给什么年龄段的人看？
+• 希望传达给特定群体吗？（比如青少年、职场人士等）
+• 需要考虑特定的文化偏好或价值观吗？
+• 希望读者在看完后有什么感受？
+
+了解目标读者能帮我们调整故事的语言风格和内容深度。`,
+        followUp: '如果没有特定要求，我们可以按照通用大众的喜好来创作。'
+      },
+      {
+        key: 'narrativeModel',
+        question: `现在来确定叙事方式：
+• 您希望用什么视角来讲述？（第一人称、第三人称全知等）
+• 时间线安排：线性叙述 还是 多时间线交织？
+• 结构偏好：单一主角推进 还是 多角色视角切换？
+• 故事节奏：快节奏冒险 还是 细腻情感描述？
+
+这将决定故事的整体呈现方式。`,
+        followUp: '不同的叙事方式会带来完全不同的阅读体验，请根据您的喜好选择。'
+      },
+      {
+        key: 'storyCore',
+        question: `最后，让我们确定故事的内核：
+• 想要探讨的主题（爱情、友情、成长、正义等）
+• 希望传达的情感内核（温暖、激励、反思、娱乐等）
+• 故事的整体色调（明亮温馨、深沉严肃、轻松幽默等）
+• 最希望读者记住的是什么？
+
+这是故事的灵魂所在，会贯穿整个创作过程。`,
+        followUp: '一个清晰的主题能让故事更有感染力和深度。'
+      }
+    ];
+  }
+
+  // 检查用户是否表达了开始创作的意愿
+  checkUserWantsToStart(userInput) {
+    const startKeywords = [
+      '开始', '开始创作', '开始工作', '开始写', '开始吧',
+      '可以开始了', '够了', '就这样', '开始生成',
+      '让他们开始', '让团队开始', '开始制作'
+    ];
+    
+    const lowerInput = userInput.toLowerCase();
+    return startKeywords.some(keyword => 
+      lowerInput.includes(keyword.toLowerCase())
+    );
+  }
+
+  // 分析用户回答并提取需求信息
+  analyzeUserResponse(userInput, questionKey) {
+    // 这里可以进行更复杂的NLP分析
+    // 目前先简单返回用户的回答
+    return {
+      hasContent: userInput.trim().length > 0,
+      content: userInput.trim(),
+      isVague: userInput.trim().length < 10 // 简单判断是否过于简略
+    };
+  }
+
+  // 需求收集主流程
+  async handleRequirementGathering(sessionId, userInput) {
+    const session = this.sessions.get(sessionId);
+    const { requirementGathering } = session;
+    const questions = this.getRequirementQuestions();
+
+    // 检查用户是否想要跳过收集，直接开始创作
+    if (this.checkUserWantsToStart(userInput)) {
+      requirementGathering.userWantsToStart = true;
+      
+      // 检查是否有足够的基本信息
+      const collectedCount = Object.values(requirementGathering.collectedRequirements)
+        .filter(req => req !== null).length;
+      
+      if (collectedCount < 2) {
+        // 信息太少，建议继续收集
+        const response = await this.agents.frontDesk.generateResponse(
+          `用户说："${userInput}"，似乎想要开始创作了。但目前收集到的信息还比较少（只有${collectedCount}项），建议用户至少再提供一些基本信息。请友好地建议用户再完善一下，或者询问是否确实要以现有信息开始创作。`
+        );
+
+        this.emitUserMessage(sessionId, {
+          message: response.success ? response.content : '建议您再提供一些基本信息，这样我们的团队能创作出更符合您期望的作品。您也可以明确告诉我"就以现在的信息开始创作"。',
+          speaker: this.agents.frontDesk.getName(),
+          role: this.agents.frontDesk.getRole(),
+          requirementGathering: {
+            canProceed: true,
+            suggestion: '建议继续完善信息'
+          }
+        });
+        return;
+      }
+
+      // 信息足够，确认开始创作
+      requirementGathering.isComplete = true;
+      session.currentPhase = 'team_collaboration';
+      
+      const confirmResponse = await this.agents.frontDesk.generateResponse(
+        `用户确认要开始创作。已收集的需求信息：${JSON.stringify(requirementGathering.collectedRequirements)}。请友好地确认收到，并告知即将开始团队协作创作。`
+      );
+
+      this.emitUserMessage(sessionId, {
+        message: confirmResponse.success ? confirmResponse.content : '好的！我已经收到您的信息，现在就开始让我们的专业团队为您创作。请稍候...',
+        speaker: this.agents.frontDesk.getName(),
+        role: this.agents.frontDesk.getRole(),
+        requirementGathering: {
+          completed: true
+        }
+      });
+
+      // 开始团队协作
+      await this.startTeamCollaboration(sessionId, userInput);
+      return;
+    }
+
+    // 处理当前问题的回答
+    if (requirementGathering.currentQuestion !== null) {
+      const currentQ = questions[requirementGathering.questionIndex];
+      const analysis = this.analyzeUserResponse(userInput, currentQ.key);
+      
+      if (analysis.hasContent) {
+        requirementGathering.collectedRequirements[currentQ.key] = analysis.content;
+        
+        // 如果回答过于简略，给出提示
+        if (analysis.isVague) {
+          const clarifyResponse = await this.agents.frontDesk.generateResponse(
+            `用户回答了"${userInput}"，但信息比较简略。请友好地确认收到，并适当引导用户提供更多细节，或者询问是否这样就足够了。`
+          );
+
+          this.emitUserMessage(sessionId, {
+            message: clarifyResponse.success ? clarifyResponse.content : `我记录了您的回答："${userInput}"。如果您能提供更多细节就更好了，这样我们能创作得更精准。当然，如果您觉得这样就够了，我也可以继续下一个问题。`,
+            speaker: this.agents.frontDesk.getName(),
+            role: this.agents.frontDesk.getRole(),
+            requirementGathering: {
+              recorded: analysis.content,
+              needMoreDetail: true
+            }
+          });
+          return;
+        }
+      }
+    }
+
+    // 继续下一个问题或结束收集
+    requirementGathering.questionIndex++;
+    
+    if (requirementGathering.questionIndex >= questions.length) {
+      // 所有问题都问完了
+      requirementGathering.isComplete = true;
+      session.currentPhase = 'team_collaboration';
+      
+      const summaryResponse = await this.agents.frontDesk.generateResponse(
+        `已经收集完所有需求信息：${JSON.stringify(requirementGathering.collectedRequirements)}。请向用户总结收集到的信息，并询问是否可以开始创作，或者还需要修改什么。`
+      );
+
+      this.emitUserMessage(sessionId, {
+        message: summaryResponse.success ? summaryResponse.content : '太好了！我已经收集了所有关键信息。现在我可以开始让团队为您创作了，还是您想要修改或补充什么信息？',
+        speaker: this.agents.frontDesk.getName(),
+        role: this.agents.frontDesk.getRole(),
+        requirementGathering: {
+          allCollected: true,
+          readyToStart: true
+        }
+      });
+      return;
+    }
+
+    // 问下一个问题
+    const nextQuestion = questions[requirementGathering.questionIndex];
+    requirementGathering.currentQuestion = nextQuestion.key;
+    
+    const questionResponse = await this.agents.frontDesk.generateResponse(
+      `现在需要询问用户关于"${nextQuestion.key}"的问题。请用友好自然的方式问这个问题："${nextQuestion.question}"，并可以加上这个提示："${nextQuestion.followUp}"`
+    );
+
+    this.emitUserMessage(sessionId, {
+      message: questionResponse.success ? questionResponse.content : nextQuestion.question,
+      speaker: this.agents.frontDesk.getName(),
+      role: this.agents.frontDesk.getRole(),
+      requirementGathering: {
+        questionKey: nextQuestion.key,
+        questionIndex: requirementGathering.questionIndex,
+        totalQuestions: questions.length
+      }
+    });
   }
 }
 
