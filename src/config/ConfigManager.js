@@ -149,7 +149,7 @@ class ConfigManager {
     const warnings = [];
 
     // 检查必需的角色是否存在
-    const requiredRoles = ['creative_director', 'story_architect', 'character_designer', 'dialogue_expert', 'front_desk'];
+    const requiredRoles = ['creative_director', 'story_architect', 'character_designer', 'front_desk'];
     for (const roleId of requiredRoles) {
       if (!this.roleConfigs[roleId]) {
         errors.push(`缺少必需的角色配置: ${roleId}`);

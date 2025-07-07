@@ -1,13 +1,16 @@
 // 角色配置索引 - 统一管理所有AI角色配置
 import AriaConfig from './AriaConfig.js';
+import KairosConfig from './KairosConfig.js';
+import BlakeConfig from './BlakeConfig.js';
+import CharlieConfig from './CharlieConfig.js';
 
 // 角色配置映射
 export const RoleConfigMap = {
   front_desk: AriaConfig,
+  creative_director: KairosConfig,
+  story_architect: BlakeConfig,
+  character_designer: CharlieConfig,
   // 其他角色配置可以在这里添加
-  // creative_director: AlexConfig,
-  // story_architect: BlakeConfig,
-  // character_designer: CharlieConfig,
   // dialogue_expert: DanaConfig,
 };
 

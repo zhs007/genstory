@@ -63,8 +63,8 @@ export const SystemConfig = {
 export const RoleConfigs = {
   creative_director: {
     // 基本信息
-    name: 'Alex',
-    displayName: '创意总监 Alex',
+    name: 'Kairos',
+    displayName: '创意总监 Kairos',
     emoji: '👔',
     enabled: true,
     
@@ -79,7 +79,7 @@ export const RoleConfigs = {
     },
     
     // 角色提示词
-    systemPrompt: `你是一位资深的故事创意总监，名叫Alex。你富有创造力和想象力，擅长从用户需求中提炼出精彩的故事概念。
+    systemPrompt: `你是一位资深的故事创意总监，名叫Kairos。你富有创造力和想象力，擅长从用户需求中提炼出精彩的故事概念。
 
 你的职责：
 - 理解和分析用户的故事需求
@@ -101,7 +101,7 @@ export const RoleConfigs = {
 - 适当使用表格来对比不同创意方案
 - 添加相关表情符号让讨论更生动
 
-请始终以Alex的身份与团队成员交流，保持专业而友好的语气。`,
+请始终以Kairos的身份与团队成员交流，保持专业而友好的语气。`,
 
     // 交流风格
     communicationStyle: {
@@ -121,9 +121,9 @@ export const RoleConfigs = {
     // 模型配置
     model: {
       provider: 'gemini',
-      modelName: 'gemini-2.5-pro',
-      temperature: 0.6,        // 中等创造性，更注重逻辑
-      maxTokens: 2048,
+      modelName: 'gemini-2.5-flash',
+      temperature: 0.7,        // 与新配置系统保持一致
+      maxTokens: 1024,         // 与新配置系统保持一致
       topP: 0.8,
       topK: 30
     },
@@ -170,11 +170,11 @@ export const RoleConfigs = {
     // 模型配置
     model: {
       provider: 'gemini',
-      modelName: 'gemini-2.5-pro',
+      modelName: 'gemini-2.5-flash',
       temperature: 0.7,
-      maxTokens: 2048,
-      topP: 0.85,
-      topK: 35
+      maxTokens: 1024,
+      topP: 0.8,
+      topK: 30
     },
     
     systemPrompt: `你是一位富有想象力的角色设计师，名叫Charlie。你专注于创造生动立体的角色，赋予他们独特的个性和背景。
@@ -204,54 +204,6 @@ export const RoleConfigs = {
     communicationStyle: {
       tone: 'creative',
       formality: 'casual',
-      creativity: 'high'
-    }
-  },
-
-  dialogue_expert: {
-    // 基本信息
-    name: 'Dana',
-    displayName: '对话专家 Dana',
-    emoji: '💬',
-    enabled: true,
-    
-    // 模型配置
-    model: {
-      provider: 'gemini',
-      modelName: 'gemini-2.5-pro',
-      temperature: 0.75,
-      maxTokens: 2048,
-      topP: 0.9,
-      topK: 40
-    },
-    
-    systemPrompt: `你是一位专业的对话专家，名叫Dana。你擅长编写自然流畅的对话和优美的叙述文字。
-
-你的职责：
-- 编写角色间的精彩对话
-- 完善故事的叙述风格和语言表达
-- 确保对话符合角色性格特点
-- 调整整体的文字风格和节奏
-
-你的性格特点：
-- 语言天赋出众，文笔优美
-- 善于捕捉不同角色的说话方式
-- 注重文字的韵律和美感
-- 追求语言的精准和生动
-
-【输出格式要求】
-- 使用Markdown格式让对话和叙述更优美
-- 用引用块来展示精彩对话段落
-- 用代码块来标注叙述技巧和文体要求
-- 用斜体来强调语言的韵律感
-- 用不同层级标题来组织对话场景
-- 适当使用文学性的表情符号
-
-请以Dana的身份参与讨论，用优雅的语言表达你的想法。`,
-
-    communicationStyle: {
-      tone: 'eloquent',        // 雄辩的
-      formality: 'elegant',    // 优雅的
       creativity: 'high'
     }
   },
@@ -318,8 +270,7 @@ export const GenreConfigurations = {
     promptModifiers: {
       creative_director: '注重科技创新和未来想象',
       story_architect: '构建符合科学逻辑的情节',
-      character_designer: '设计具有科技感的角色',
-      dialogue_expert: '使用现代化和技术化的语言'
+      character_designer: '设计具有科技感的角色'
     }
   },
   
@@ -334,8 +285,7 @@ export const GenreConfigurations = {
     promptModifiers: {
       creative_director: '创造富有想象力的奇幻世界',
       story_architect: '构建奇幻世界的规则和逻辑',
-      character_designer: '设计具有奇幻特色的角色',
-      dialogue_expert: '使用富有诗意和古典美的语言'
+      character_designer: '设计具有奇幻特色的角色'
     }
   },
   
@@ -350,8 +300,7 @@ export const GenreConfigurations = {
     promptModifiers: {
       creative_director: '创造浪漫而真实的爱情故事',
       story_architect: '构建情感发展的自然节奏',
-      character_designer: '塑造有魅力和深度的角色',
-      dialogue_expert: '编写温馨动人的对话'
+      character_designer: '塑造有魅力和深度的角色'
     }
   },
 
@@ -366,8 +315,7 @@ export const GenreConfigurations = {
     promptModifiers: {
       creative_director: '设计巧妙的谜团和线索',
       story_architect: '构建逻辑严密的推理过程',
-      character_designer: '创造复杂多面的角色',
-      dialogue_expert: '营造紧张悬疑的氛围'
+      character_designer: '创造复杂多面的角色'
     }
   },
 
@@ -382,8 +330,7 @@ export const GenreConfigurations = {
     promptModifiers: {
       creative_director: '根据具体需求灵活创作',
       story_architect: '保持故事结构的平衡',
-      character_designer: '创造真实可信的角色',
-      dialogue_expert: '使用自然流畅的语言'
+      character_designer: '创造真实可信的角色'
     }
   }
 };

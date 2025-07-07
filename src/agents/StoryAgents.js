@@ -150,59 +150,6 @@ export class CharacterDesigner extends BaseAgent {
   }
 }
 
-// 对话专家 - 负责对话和叙述风格
-export class DialogueExpert extends BaseAgent {
-  constructor(genre = 'general') {
-    super('dialogue_expert', genre);
-  }
-
-  /**
-   * 编写对话和叙述
-   * @param {string} scene - 场景描述
-   * @param {Array} characters - 参与角色
-   * @param {string} mood - 情绪氛围
-   * @returns {Promise<string>} 对话和叙述文本
-   */
-  async writeDialogue(scene, characters, mood) {
-    const characterList = Array.isArray(characters) ? 
-      characters.join(', ') : characters;
-
-    const prompt = `场景：${scene}
-参与角色：${characterList}
-情绪氛围：${mood}
-
-请编写这个场景的对话和叙述：
-1. 确保每个角色有独特的说话风格
-2. 对话要自然流畅，符合角色性格
-3. 叙述要生动形象，营造适当氛围
-4. 语言要优美且易于理解
-5. 注意语言的节奏和韵律`;
-
-    return await this.generateResponse(prompt);
-  }
-
-  /**
-   * 润色文本
-   * @param {string} rawText - 原始文本
-   * @param {string} targetStyle - 目标风格
-   * @returns {Promise<string>} 润色后的文本
-   */
-  async polishText(rawText, targetStyle) {
-    const prompt = `原始文本：${rawText}
-
-目标风格：${targetStyle}
-
-请润色这段文本：
-1. 优化语言表达和词汇选择
-2. 调整句式结构和节奏
-3. 增强文字的感染力
-4. 确保风格统一
-5. 保持原意的同时提升可读性`;
-
-    return await this.generateResponse(prompt);
-  }
-}
-
 // 前台接待 - 与用户直接交互的角色
 export class FrontDesk extends BaseAgent {
   constructor(genre = 'general') {

@@ -4,7 +4,6 @@ import {
   CreativeDirector, 
   StoryArchitect, 
   CharacterDesigner, 
-  DialogueExpert, 
   FrontDesk 
 } from './agents/StoryAgents.js';
 
@@ -27,9 +26,6 @@ class MultiAgentOrchestrator {
           break;
         case 'character_designer':
           this.agents.characterDesigner = new CharacterDesigner(genre);
-          break;
-        case 'dialogue_expert':
-          this.agents.dialogueExpert = new DialogueExpert(genre);
           break;
         case 'front_desk':
           this.agents.frontDesk = new FrontDesk(genre);
@@ -466,60 +462,11 @@ ${fullRequirementAnalysis}
       role: this.agents.characterDesigner.getRole()
     });
 
-    // 阶段4：对话专家润色表达
-    this.emitInternalCommunication(sessionId, {
-      phase: 'dialogue_polish',
-      message: '对话专家开始优化故事表达...'
-    });
-
-    const dialogueResult = await this.agents.dialogueExpert.generateResponse(
-      `基于角色设计: "${characterDesign}"
-      请为故事编写精彩的对话和叙述。`
-    );
-
-    if (!dialogueResult.success) {
-      // 保存重试上下文
-      session.retryContext = {
-        originalUserInput,
-        ariaAnalysis,
-        isInterruption,
-        failedAgent: 'dialogueExpert',
-        completedPhases: [
-          { phase: 'creative_analysis', result: creativeAnalysis },
-          { phase: 'story_structure', result: structureDesign },
-          { phase: 'character_design', result: characterDesign }
-        ]
-      };
-      session.failedAt = 'dialogue_polish';
-      session.lastError = dialogueResult.error;
-      
-      this.emitInternalCommunication(sessionId, {
-        phase: 'dialogue_polish',
-        message: `对话专家遇到问题：${dialogueResult.error.message}`,
-        speaker: this.agents.dialogueExpert.getName(),
-        role: this.agents.dialogueExpert.getRole(),
-        error: true,
-        canRetry: true,
-        retryButton: true
-      });
-      return; // 中断流程
-    }
-
-    const dialoguePolish = dialogueResult.content;
-
-    this.emitInternalCommunication(sessionId, {
-      phase: 'dialogue_polish',
-      message: dialoguePolish,
-      speaker: this.agents.dialogueExpert.getName(),
-      role: this.agents.dialogueExpert.getRole()
-    });
-
-    // 阶段5：团队总结和最终呈现
+    // 阶段4：团队总结和最终呈现
     const finalStory = await this.synthesizeFinalStory(sessionId, {
       creative: creativeAnalysis,
       structure: structureDesign,
-      characters: characterDesign,
-      dialogue: dialoguePolish
+      characters: characterDesign
     });
 
     // 前台接待向用户展示最终结果
@@ -569,8 +516,6 @@ ${fullRequirementAnalysis}
 故事结构: ${components.structure}
 
 角色设计: ${components.characters}
-
-对话润色: ${components.dialogue}
     `.trim();
 
     return synthesis;
@@ -662,9 +607,6 @@ ${fullRequirementAnalysis}
         break;
       case 'characterDesigner':
         await this.executeCharacterPhase(sessionId, structureDesign, creativeAnalysis, originalUserInput, ariaAnalysis, isInterruption);
-        break;
-      case 'dialogueExpert':
-        await this.executeDialoguePhase(sessionId, characterDesign, structureDesign, creativeAnalysis, originalUserInput, ariaAnalysis, isInterruption);
         break;
     }
   }
@@ -814,64 +756,11 @@ ${fullRequirementAnalysis}
       role: this.agents.characterDesigner.getRole()
     });
 
-    // 继续下一阶段
-    await this.executeDialoguePhase(sessionId, characterDesign, structureDesign, creativeAnalysis, originalUserInput, ariaAnalysis, isInterruption);
-  }
-
-  async executeDialoguePhase(sessionId, characterDesign, structureDesign, creativeAnalysis, originalUserInput, ariaAnalysis, isInterruption) {
-    const session = this.sessions.get(sessionId);
-    
-    this.emitInternalCommunication(sessionId, {
-      phase: 'dialogue_polish',
-      message: '对话专家开始优化故事表达...'
-    });
-
-    const dialogueResult = await this.agents.dialogueExpert.generateResponse(
-      `基于角色设计: "${characterDesign}"
-      请为故事编写精彩的对话和叙述。`
-    );
-
-    if (!dialogueResult.success) {
-      session.retryContext = {
-        originalUserInput,
-        ariaAnalysis,
-        isInterruption,
-        failedAgent: 'dialogueExpert',
-        completedPhases: [
-          { phase: 'creative_analysis', result: creativeAnalysis },
-          { phase: 'story_structure', result: structureDesign },
-          { phase: 'character_design', result: characterDesign }
-        ]
-      };
-      session.failedAt = 'dialogue_polish';
-      session.lastError = dialogueResult.error;
-      
-      this.emitInternalCommunication(sessionId, {
-        phase: 'dialogue_polish',
-        message: `对话专家遇到问题：${dialogueResult.error.message}`,
-        speaker: this.agents.dialogueExpert.getName(),
-        role: this.agents.dialogueExpert.getRole(),
-        error: true,
-        canRetry: true,
-        retryButton: true
-      });
-      return;
-    }
-
-    const dialoguePolish = dialogueResult.content;
-    this.emitInternalCommunication(sessionId, {
-      phase: 'dialogue_polish',
-      message: dialoguePolish,
-      speaker: this.agents.dialogueExpert.getName(),
-      role: this.agents.dialogueExpert.getRole()
-    });
-
-    // 完成最终故事生成
+    // 直接完成最终故事生成
     await this.completeFinalStory(sessionId, {
       creative: creativeAnalysis,
       structure: structureDesign,
-      characters: characterDesign,
-      dialogue: dialoguePolish
+      characters: characterDesign
     });
   }
 
