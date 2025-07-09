@@ -237,3 +237,127 @@ export class FrontDesk extends BaseAgent {
     return await this.generateResponse(prompt);
   }
 }
+
+// 编辑反思者 - 负责质疑和完善团队创意
+export class CreativeEditor extends BaseAgent {
+  constructor(genre = 'general') {
+    super('creative_editor', genre);
+  }
+
+  /**
+   * 质疑Blake的结构方案
+   * @param {string} userRequirements - 用户需求
+   * @param {string} blakeProposal - Blake的方案
+   * @returns {Promise<string>} 质疑和建议
+   */
+  async critiqueStructureProposal(userRequirements, blakeProposal) {
+    const prompt = `用户需求：${userRequirements}
+
+Blake的结构方案：${blakeProposal}
+
+请从以下角度进行建设性质疑：
+1. 结构逻辑是否合理？
+2. 是否符合用户需求？
+3. 读者接受度如何？
+4. 执行难度评估
+5. 具体改进建议
+
+记住：要建设性地质疑，既指出问题也提供解决方案。`;
+
+    return await this.generateResponse(prompt);
+  }
+
+  /**
+   * 质疑Charlie的角色方案
+   * @param {string} userRequirements - 用户需求
+   * @param {string} charlieProposal - Charlie的方案
+   * @returns {Promise<string>} 质疑和建议
+   */
+  async critiqueCharacterProposal(userRequirements, charlieProposal) {
+    const prompt = `用户需求：${userRequirements}
+
+Charlie的角色方案：${charlieProposal}
+
+请从以下角度进行建设性质疑：
+1. 角色设定是否可信？
+2. 是否与目标读者产生共鸣？
+3. 角色关系是否合理？
+4. 市场吸引力如何？
+5. 具体改进建议
+
+记住：要帮助Charlie完善角色设计，而不是否定创意。`;
+
+    return await this.generateResponse(prompt);
+  }
+
+  /**
+   * 综合方案质疑
+   * @param {string} userRequirements - 用户需求
+   * @param {Array} teamProposals - 团队方案
+   * @returns {Promise<string>} 综合分析
+   */
+  async critiqueOverallProposal(userRequirements, teamProposals) {
+    const proposalsSummary = teamProposals.map(proposal => 
+      `${proposal.role}: ${proposal.content}`
+    ).join('\n');
+
+    const prompt = `用户需求：${userRequirements}
+
+团队提出的方案：
+${proposalsSummary}
+
+请进行综合评估：
+1. 整体方案的优势和亮点
+2. 潜在的问题和风险
+3. 市场竞争力分析
+4. 用户接受度预测
+5. 具体改进建议
+
+为Kairos的最终决策提供参考。`;
+
+    return await this.generateResponse(prompt);
+  }
+
+  /**
+   * 提供最终建议
+   * @param {Object} discussionRecord - 完整讨论记录
+   * @param {string} coreRequirements - 核心需求
+   * @returns {Promise<string>} 最终建议
+   */
+  async provideFinalRecommendation(discussionRecord, coreRequirements) {
+    const prompt = `完整讨论记录：${JSON.stringify(discussionRecord, null, 2)}
+
+用户核心需求：${coreRequirements}
+
+请提供最终建议：
+1. 推荐的方案及理由
+2. 不推荐的方案及原因
+3. 需要特别注意的风险点
+4. 对最终3个初案的建议`;
+
+    return await this.generateResponse(prompt);
+  }
+
+  /**
+   * 方案优化建议
+   * @param {string} selectedProposal - 选定方案
+   * @param {Array} identifiedIssues - 已识别问题
+   * @returns {Promise<string>} 优化建议
+   */
+  async provideOptimizationSuggestions(selectedProposal, identifiedIssues) {
+    const issuesSummary = identifiedIssues.join('\n');
+
+    const prompt = `选定方案：${selectedProposal}
+
+已识别的问题：
+${issuesSummary}
+
+请提供：
+1. 具体的优化方案
+2. 风险规避策略
+3. 执行过程中的注意事项
+4. 质量控制建议`;
+
+    return await this.generateResponse(prompt);
+  }
+}

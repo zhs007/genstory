@@ -3,6 +3,7 @@ import AriaConfig from './AriaConfig.js';
 import KairosConfig from './KairosConfig.js';
 import BlakeConfig from './BlakeConfig.js';
 import CharlieConfig from './CharlieConfig.js';
+import ElenaConfig from './ElenaConfig.js';
 
 // 角色配置映射
 export const RoleConfigMap = {
@@ -10,6 +11,7 @@ export const RoleConfigMap = {
   creative_director: KairosConfig,
   story_architect: BlakeConfig,
   character_designer: CharlieConfig,
+  creative_editor: ElenaConfig,
   // 其他角色配置可以在这里添加
   // dialogue_expert: DanaConfig,
 };

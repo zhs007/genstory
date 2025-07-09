@@ -943,7 +943,8 @@ ${proxyStatus}
 👔 创意总监 Kairos - 负责整体创意构思
 🏗️  架构师 Blake - 负责故事结构设计  
 🎨 设计师 Charlie - 负责角色塑造
- 接待员 Aria - 负责用户交互
+🔍 反思者 Elena - 负责质疑和完善创意
+👋 接待员 Aria - 负责用户交互
 
 ⚠️ 如果遇到 API 连接问题，请检查：
 1. GEMINI_API_KEY 是否正确设置

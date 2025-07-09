@@ -4,6 +4,7 @@ import {
   CreativeDirector, 
   StoryArchitect, 
   CharacterDesigner, 
+  CreativeEditor,
   FrontDesk 
 } from './agents/StoryAgents.js';
 
@@ -26,6 +27,9 @@ class MultiAgentOrchestrator {
           break;
         case 'character_designer':
           this.agents.characterDesigner = new CharacterDesigner(genre);
+          break;
+        case 'creative_editor':
+          this.agents.creativeEditor = new CreativeEditor(genre);
           break;
         case 'front_desk':
           this.agents.frontDesk = new FrontDesk(genre);
@@ -317,167 +321,255 @@ ${fullRequirementAnalysis}
     await this.conductInternalDiscussion(sessionId, userInput, ariaAnalysis, false);
   }
 
-  // 内部讨论流程
+  // 内部讨论流程 - 头脑风暴模式
   async conductInternalDiscussion(sessionId, originalUserInput, ariaAnalysis, isInterruption) {
     const session = this.sessions.get(sessionId);
     
-    // 阶段1：创意总监分析需求
+    // 阶段1：Blake(架构师)发散思维 - 提供结构方案
     this.emitInternalCommunication(sessionId, {
-      phase: 'creative_analysis',
-      message: '📝 创意总监开始分析Aria传达的需求...'
-    });
-
-    const creativeResult = await this.agents.creativeDirector.generateResponse(
-      `Aria（前台需求分析师）传达的分析：
-"${ariaAnalysis}"
-
-原始用户输入："${originalUserInput}"${isInterruption ? ' (这是一个中途建议)' : ''}
-
-请基于Aria的专业分析，提出创意方向和整体概念。`
-    );
-
-    if (!creativeResult.success) {
-      // 保存重试上下文
-      session.retryContext = {
-        originalUserInput,
-        ariaAnalysis,
-        isInterruption,
-        failedAgent: 'creativeDirector',
-        completedPhases: [] // 创意分析阶段失败，没有完成的阶段
-      };
-      session.failedAt = 'creative_analysis';
-      session.lastError = creativeResult.error;
-      
-      this.emitInternalCommunication(sessionId, {
-        phase: 'creative_analysis',
-        message: `创意总监遇到问题：${creativeResult.error.message}`,
-        speaker: this.agents.creativeDirector.getName(),
-        role: this.agents.creativeDirector.getRole(),
-        error: true,
-        canRetry: true,
-        retryButton: true
-      });
-      return; // 中断流程
-    }
-
-    const creativeAnalysis = creativeResult.content;
-
-    this.emitInternalCommunication(sessionId, {
-      phase: 'creative_analysis',
-      message: creativeAnalysis,
-      speaker: this.agents.creativeDirector.getName(),
-      role: this.agents.creativeDirector.getRole()
-    });
-
-    // 阶段2：架构师设计故事结构
-    this.emitInternalCommunication(sessionId, {
-      phase: 'story_structure',
-      message: '故事架构师开始设计故事结构...'
+      phase: 'brainstorm_structure',
+      message: '🏗️ Blake开始基于需求提供多个结构方案...'
     });
 
     const structureResult = await this.agents.storyArchitect.generateResponse(
-      `基于创意总监的分析: "${creativeAnalysis}"
-      请设计具体的故事结构和情节框架。`
+      `Aria传达的用户需求分析：
+"${ariaAnalysis}"
+
+原始用户输入："${originalUserInput}"
+
+作为故事架构师，请在头脑风暴阶段提供3-5个不同的结构方案创意。每个方案要有独特的结构特点和适用场景。现在是发散思维阶段，请提供多样化的选择。`
     );
 
     if (!structureResult.success) {
-      // 保存重试上下文
       session.retryContext = {
         originalUserInput,
         ariaAnalysis,
         isInterruption,
         failedAgent: 'storyArchitect',
-        completedPhases: [
-          { phase: 'creative_analysis', result: creativeAnalysis }
-        ]
+        completedPhases: []
       };
-      session.failedAt = 'story_structure';
+      session.failedAt = 'brainstorm_structure';
       session.lastError = structureResult.error;
       
       this.emitInternalCommunication(sessionId, {
-        phase: 'story_structure',
-        message: `故事架构师遇到问题：${structureResult.error.message}`,
+        phase: 'brainstorm_structure',
+        message: `Blake遇到问题：${structureResult.error.message}`,
         speaker: this.agents.storyArchitect.getName(),
         role: this.agents.storyArchitect.getRole(),
         error: true,
         canRetry: true,
         retryButton: true
       });
-      return; // 中断流程
+      return;
     }
 
-    const structureDesign = structureResult.content;
+    const blakeProposals = structureResult.content;
 
     this.emitInternalCommunication(sessionId, {
-      phase: 'story_structure',
-      message: structureDesign,
+      phase: 'brainstorm_structure',
+      message: blakeProposals,
       speaker: this.agents.storyArchitect.getName(),
       role: this.agents.storyArchitect.getRole()
     });
 
-    // 阶段3：角色设计师创造角色
+    // 阶段2：Charlie(角色设计师)发散思维 - 提供角色方案
     this.emitInternalCommunication(sessionId, {
-      phase: 'character_design',
-      message: '角色设计师开始创造角色...'
+      phase: 'brainstorm_characters',
+      message: '🎨 Charlie开始提供多个角色设计方案...'
     });
 
     const characterResult = await this.agents.characterDesigner.generateResponse(
-      `基于故事结构: "${structureDesign}"
-      请设计主要角色及其特征。`
+      `用户需求分析：
+"${ariaAnalysis}"
+
+Blake的结构方案：
+"${blakeProposals}"
+
+作为角色设计师，请在头脑风暴阶段提供3-5个不同的角色设计构想。每个方案要有独特的角色特色和故事价值。现在是发散思维阶段，请提供多样化的角色创意。`
     );
 
     if (!characterResult.success) {
-      // 保存重试上下文
       session.retryContext = {
         originalUserInput,
         ariaAnalysis,
         isInterruption,
         failedAgent: 'characterDesigner',
         completedPhases: [
-          { phase: 'creative_analysis', result: creativeAnalysis },
-          { phase: 'story_structure', result: structureDesign }
+          { phase: 'brainstorm_structure', result: blakeProposals }
         ]
       };
-      session.failedAt = 'character_design';
+      session.failedAt = 'brainstorm_characters';
       session.lastError = characterResult.error;
       
       this.emitInternalCommunication(sessionId, {
-        phase: 'character_design',
-        message: `角色设计师遇到问题：${characterResult.error.message}`,
+        phase: 'brainstorm_characters',
+        message: `Charlie遇到问题：${characterResult.error.message}`,
         speaker: this.agents.characterDesigner.getName(),
         role: this.agents.characterDesigner.getRole(),
         error: true,
         canRetry: true,
         retryButton: true
       });
-      return; // 中断流程
+      return;
     }
 
-    const characterDesign = characterResult.content;
+    const charlieProposals = characterResult.content;
 
     this.emitInternalCommunication(sessionId, {
-      phase: 'character_design',
-      message: characterDesign,
+      phase: 'brainstorm_characters',
+      message: charlieProposals,
       speaker: this.agents.characterDesigner.getName(),
       role: this.agents.characterDesigner.getRole()
     });
 
-    // 阶段4：团队总结和最终呈现
-    const finalStory = await this.synthesizeFinalStory(sessionId, {
-      creative: creativeAnalysis,
-      structure: structureDesign,
-      characters: characterDesign
+    // 阶段3：Elena(编辑反思者)质疑和完善
+    if (this.agents.creativeEditor) {
+      this.emitInternalCommunication(sessionId, {
+        phase: 'critique_analysis',
+        message: '🔍 Elena开始对方案进行建设性质疑和分析...'
+      });
+
+      const critiqueResult = await this.agents.creativeEditor.generateResponse(
+        `用户需求：
+"${ariaAnalysis}"
+
+Blake的结构方案：
+"${blakeProposals}"
+
+Charlie的角色方案：
+"${charlieProposals}"
+
+作为编辑反思者，请对以上方案进行建设性质疑：
+1. 分析各方案的优势和潜在问题
+2. 从读者、市场、可行性等角度提出质疑
+3. 提供具体的改进建议
+4. 为Kairos的最终决策提供参考
+
+记住：要建设性地帮助完善方案，而不是否定创意。`
+      );
+
+      if (!critiqueResult.success) {
+        session.retryContext = {
+          originalUserInput,
+          ariaAnalysis,
+          isInterruption,
+          failedAgent: 'creativeEditor',
+          completedPhases: [
+            { phase: 'brainstorm_structure', result: blakeProposals },
+            { phase: 'brainstorm_characters', result: charlieProposals }
+          ]
+        };
+        session.failedAt = 'critique_analysis';
+        session.lastError = critiqueResult.error;
+        
+        this.emitInternalCommunication(sessionId, {
+          phase: 'critique_analysis',
+          message: `Elena遇到问题：${critiqueResult.error.message}`,
+          speaker: this.agents.creativeEditor.getName(),
+          role: this.agents.creativeEditor.getRole(),
+          error: true,
+          canRetry: true,
+          retryButton: true
+        });
+        return;
+      }
+
+      const elenaAnalysis = critiqueResult.content;
+
+      this.emitInternalCommunication(sessionId, {
+        phase: 'critique_analysis',
+        message: elenaAnalysis,
+        speaker: this.agents.creativeEditor.getName(),
+        role: this.agents.creativeEditor.getRole()
+      });
+
+      // 保存Elena的分析结果
+      session.elenaAnalysis = elenaAnalysis;
+    }
+
+    // 阶段4：Kairos(创意总监)最终决策 - 确定3个初案
+    this.emitInternalCommunication(sessionId, {
+      phase: 'final_decision',
+      message: '🎨 Kairos基于团队讨论做出最终决策...'
     });
 
-    // 前台接待向用户展示最终结果
-    const finalResult = await this.agents.frontDesk.generateResponse(
-      `团队已经完成了故事创作，最终成果是: "${finalStory}"
-      请向用户友好地展示这个结果，并询问是否需要调整。`
+    const decisionPrompt = `头脑风暴讨论总结：
+
+用户需求分析（Aria）：
+"${ariaAnalysis}"
+
+Blake的结构方案：
+"${blakeProposals}"
+
+Charlie的角色方案：
+"${charlieProposals}"
+
+${this.agents.creativeEditor ? `Elena的质疑分析：
+"${session.elenaAnalysis || '暂无Elena分析'}"` : ''}
+
+作为创意总监，请做出最终决策：
+1. 综合所有团队成员的贡献
+2. 确定最终的3个初案方向
+3. 为每个初案明确核心特色和价值主张
+4. 说明选择理由
+
+格式：
+初案A：[创意方向] - [核心特色] - [目标受众匹配]
+初案B：[创意方向] - [核心特色] - [目标受众匹配]  
+初案C：[创意方向] - [核心特色] - [目标受众匹配]`;
+
+    const decisionResult = await this.agents.creativeDirector.generateResponse(decisionPrompt);
+
+    if (!decisionResult.success) {
+      session.retryContext = {
+        originalUserInput,
+        ariaAnalysis,
+        isInterruption,
+        failedAgent: 'creativeDirector',
+        completedPhases: [
+          { phase: 'brainstorm_structure', result: blakeProposals },
+          { phase: 'brainstorm_characters', result: charlieProposals }
+        ]
+      };
+      session.failedAt = 'final_decision';
+      session.lastError = decisionResult.error;
+      
+      this.emitInternalCommunication(sessionId, {
+        phase: 'final_decision',
+        message: `Kairos遇到问题：${decisionResult.error.message}`,
+        speaker: this.agents.creativeDirector.getName(),
+        role: this.agents.creativeDirector.getRole(),
+        error: true,
+        canRetry: true,
+        retryButton: true
+      });
+      return;
+    }
+
+    const finalDecision = decisionResult.content;
+
+    this.emitInternalCommunication(sessionId, {
+      phase: 'final_decision',
+      message: finalDecision,
+      speaker: this.agents.creativeDirector.getName(),
+      role: this.agents.creativeDirector.getRole()
+    });
+
+    // 阶段5：Aria向用户展示3个初案
+    const presentationResult = await this.agents.frontDesk.generateResponse(
+      `团队头脑风暴完成！Kairos确定的3个初案：
+"${finalDecision}"
+
+请向用户展示这3个初案：
+1. 用友好的方式介绍3个不同的创意方向
+2. 突出每个方案的特色和优势
+3. 让用户选择最喜欢的方向
+4. 说明选择后我们将进入详细创作阶段`
     );
 
-    if (!finalResult.success) {
+    if (!presentationResult.success) {
       this.emitUserMessage(sessionId, {
-        message: `前台接待在展示结果时遇到问题：${finalResult.error.message}`,
+        message: `Aria在展示初案时遇到问题：${presentationResult.error.message}`,
         speaker: this.agents.frontDesk.getName(),
         role: this.agents.frontDesk.getRole(),
         error: true
@@ -485,14 +577,18 @@ ${fullRequirementAnalysis}
       return;
     }
 
-    const finalPresentation = finalResult.content;
+    const finalPresentation = presentationResult.content;
 
     this.emitUserMessage(sessionId, {
       message: finalPresentation,
       speaker: this.agents.frontDesk.getName(),
       role: this.agents.frontDesk.getRole(),
-      finalStory: finalStory
+      proposals: finalDecision
     });
+
+    // 更新会话阶段为等待用户选择
+    session.currentPhase = 'proposal_selection';
+    session.proposals = finalDecision;
 
     // 更新会话状态
     session.conversationLog.push({
